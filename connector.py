@@ -1,12 +1,9 @@
-# This is a simple example for how to work with the fivetran_connector_sdk module.
-# It shows the use of a requirements.txt file and a configuration.json file to pass a credential key into the connector code and use it to decrypt a message.
+# This example demonstrates how you can write a complex connector comprising multiple .py files.
+# This includes the __init__.py which is needed to ensure the timestamp_serializer module is correctly recognized.
+# The timestamp_serializer module shown in this example is used to handle scenarios where the source sends timestamps in two different formats.
+# It assumes that the source will send timestamps in UTC timezone.
 # See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-# and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details.
-
-import json  # Import the json module to handle JSON data.
-
-# Import the Fernet class from the cryptography module for encryption and decryption. The cryptography module is listed as a requirement in requirements.txt
-from cryptography.fernet import Fernet
+# and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
 
 # Import required classes from fivetran_connector_sdk
 # For supporting Connector operations like Update() and Schema()
@@ -18,8 +15,8 @@ from fivetran_connector_sdk import Logging as log
 # For supporting Data operations like Upsert(), Update(), Delete() and checkpoint()
 from fivetran_connector_sdk import Operations as op
 
-# This is an encrypted message that will be decrypted using a key from the configuration.
-encrypted_message = b"gAAAAABl-3QGKUHpdUhBNpnW1_SnSkQGrAwev-uBBJaZo4NmtylIMg8UX6usuG4Z-h80OvfJajW6HU56O5hofapEIh4W33vuMpJgq0q3qMQx6R3Ol4qZ3Wc2DyIIapxbK5BrQHshBF95"
+# Import self written modules
+from timestamp_serializer import TimestampSerializer
 
 
 def schema(configuration: dict):
@@ -30,32 +27,16 @@ def schema(configuration: dict):
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
-    # Check if the 'my_key' is present in the configuration.
-    if "my_key" not in configuration:
-        raise ValueError("Could not find 'my_key'")
-
     return [
         {
-            "table": "crypto",  # Name of the table in the destination.
-            "primary_key": ["msg"],  # Primary key column(s) for the table.
-            # No columns are defined, meaning the types will be inferred.
+            "table": "event",  # Name of the table in the destination.
+            "primary_key": ["name"],  # Primary key column(s) for the table.
+            "columns": {  # Define the columns and their data types.
+                "name": "STRING",  # String column for the name.
+                "timestamp": "UTC_DATETIME",  # UTC date-time column for the timestamp
+            },
         }
     ]
-
-
-def validate_configuration(configuration: dict):
-    """
-    Validate the configuration dictionary to ensure it contains all required parameters.
-    This function is called at the start of the update method to ensure that the connector has all necessary configuration values.
-    Args:
-        configuration: a dictionary that holds the configuration settings for the connector.
-    Raises:
-        ValueError: if any required configuration parameter is missing.
-    """
-
-    # Validate required configuration parameters
-    if "my_key" not in configuration:
-        raise ValueError("Missing required configuration value: 'my_key'")
 
 
 def update(configuration: dict, state: dict):
@@ -68,24 +49,17 @@ def update(configuration: dict, state: dict):
         state: A dictionary containing state information from previous runs
         The state dictionary is empty for the first sync or for any full re-sync
     """
-    log.warning("Example: QuickStart Examples - Configuration")
+    log.warning("Example: QuickStart Examples - Simple Three Step Cursor")
 
-    # Validate the configuration to ensure it contains all required values.
-    validate_configuration(configuration=configuration)
+    timestamp_serializer = TimestampSerializer()
 
-    # Retrieve the encryption key from the configuration.
-    key = configuration["my_key"]
-    # Create a Fernet object for encryption and decryption using the provided key.
-    f = Fernet(key.encode())
+    row_1 = {"name": "Event1", "timestamp": "2024/09/24 14:30:45"}
+    row_1["timestamp"] = timestamp_serializer.serialize(row_1["timestamp"])
+    op.upsert(table="event", data=row_1)
 
-    # Decrypt the encrypted message using the Fernet object.
-    log.fine("decrypting the message")
-    message = f.decrypt(encrypted_message)
-
-    # Upsert operation to insert/update the decrypted message in the "crypto" table.
-    op.upsert(
-        table="crypto", data={"msg": message.decode()}  # Decode the decrypted message to a string.
-    )
+    row_2 = {"name": "Event2", "timestamp": "2024-09-24 10:30:45"}
+    row_2["timestamp"] = timestamp_serializer.serialize(row_2["timestamp"])
+    op.upsert(table="event", data=row_2)
 
     # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
     # from the correct position in case of next sync or interruptions.
@@ -94,7 +68,7 @@ def update(configuration: dict, state: dict):
     op.checkpoint(state)
 
 
-# This creates the connector object that will use the update and schema functions defined in this connector.py file.
+# This creates the connector object that will use the update function defined in this connector.py file.
 connector = Connector(update=update, schema=schema)
 
 # Check if the script is being run as the main module.
@@ -102,16 +76,14 @@ connector = Connector(update=update, schema=schema)
 # This is useful for debugging while you write your code. Note this method is not called by Fivetran when executing your connector in production.
 # Please test using the Fivetran debug command prior to finalizing and deploying your connector.
 if __name__ == "__main__":
-    # Open the configuration.json file and load its contents into a dictionary.
-    with open("configuration.json", "r") as f:
-        configuration = json.load(f)
-    # Adding this code to your `connector.py` allows you to test your connector by running your file directly from your IDE.
-    connector.debug(configuration=configuration)
+    # Adding this code to your `connector.py` allows you to test your connector by running your file directly from your IDE:
+    connector.debug()
 
 # Resulting table:
-# ┌────────────────────────────────────────────────┐
-# │                      msg                       │
-# │                    varchar                     │
-# ├────────────────────────────────────────────────┤
-# │ If you can read this, you have the correct key │
-# └────────────────────────────────────────────────┘
+# ┌───────────────────┬──────────────────────────────────┐
+# │      name         │             timestamp            │
+# │     varchar       │      timestamp with time zone    │
+# ├───────────────────┼──────────────────────────────────│
+# │      Event1       │  2024-09-24 14:30:45.000 +0000   │
+# │      Event2       │  2024-09-24 10:30:45.000 +0000   │
+# └───────────────────┴──────────────────────────────────┘
