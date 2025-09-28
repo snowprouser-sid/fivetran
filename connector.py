@@ -66,7 +66,7 @@ def get_data(url, offset):
     pokemons = data["results"]
     pokemons_df = pd.DataFrame([])
     for i in range(len(pokemons)):
-        pokemon_data = {"name": pokemons[i]["name"], "url": pokemons[i]["url"]}
+        pokemon_data = {"name": pokemons[i]["name"], "url": pokemons[i]["url"], "new_column": " "}
         pokemons_df = pd.concat([pokemons_df, pd.DataFrame([pokemon_data])], ignore_index=True)
 
     return next_url, pokemons_df, offset + len(pokemons)
