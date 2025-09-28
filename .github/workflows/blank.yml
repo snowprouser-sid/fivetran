@@ -37,11 +37,9 @@ jobs:
 
       - name: Deploy Fivetran Connector
         env:
-          FIVETRAN_API_KEY: ${{ secrets.FIVETRAN_API_KEY }}
-          FIVETRAN_DESTINATION_NAME: ${{ secrets.FIVETRAN_DESTINATION_NAME }}
-          FIVETRAN_CONNECTION_NAME: ${{ secrets.FIVETRAN_CONNECTION_NAME }}
+          FIVETRAN_API_KEY: ${{ secrets.FIVETRAN_API_KEY }} 
           # `FIVETRAN_DESTINATION` and `FIVETRAN_CONNECTION` are optional parameter. Alternatively, you can hardcode it, for example: `fivetran deploy --api-key $FIVETRAN_BASE_64_ENCODED_API_KEY --destination xyz --connection abc --configuration configuration.json --force`  
         run: |
           echo "Deploying connector"
-          fivetran deploy --api-key $FIVETRAN_API_KEY --destination $FIVETRAN_DESTINATION_NAME --connection $FIVETRAN_CONNECTION_NAME --configuration configuration.json --force
+          fivetran deploy --api-key $FIVETRAN_API_KEY --configuration configuration.json --force
           echo "Successfully deployed $CONNECTION_NAME"
