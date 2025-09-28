@@ -1,0 +1,47 @@
+name: Deploy Fivetran Connector
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-fivetran-connector:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install fivetran-connector-sdk
+
+      - name: Install requirements.txt
+        run: |
+          if [ -e requirements.txt ]; then
+            echo '{"level":"INFO", "message": "Pip installing requirements.txt", "message_origin": "connector_sdk"}'
+            pip install -r <(grep -v '^requests\b' requirements.txt)
+          fi
+
+      - name: Create Configuration File
+        run: |
+          echo "{\"my_key\": \"${{ secrets.MY_KEY }}\"}" > configuration.json    
+        # MY_KEY is an example of a credential in the configuration file.
+
+      - name: Deploy Fivetran Connector
+        env:
+          FIVETRAN_API_KEY: ${{ secrets.FIVETRAN_API_KEY }}
+          FIVETRAN_DESTINATION_NAME: ${{ secrets.FIVETRAN_DESTINATION_NAME }}
+          FIVETRAN_CONNECTION_NAME: ${{ secrets.FIVETRAN_CONNECTION_NAME }}
+          # `FIVETRAN_DESTINATION` and `FIVETRAN_CONNECTION` are optional parameter. Alternatively, you can hardcode it, for example: `fivetran deploy --api-key $FIVETRAN_BASE_64_ENCODED_API_KEY --destination xyz --connection abc --configuration configuration.json --force`  
+        run: |
+          echo "Deploying connector"
+          fivetran deploy --api-key $FIVETRAN_API_KEY --destination $FIVETRAN_DESTINATION_NAME --connection $FIVETRAN_CONNECTION_NAME --configuration configuration.json --force
+          echo "Successfully deployed $CONNECTION_NAME"
