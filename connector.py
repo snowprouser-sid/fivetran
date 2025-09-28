@@ -19,7 +19,8 @@ import pandas as pd
 import requests as rq
 
 # Define the constant values
-PAGE_LIMIT = 100
+MAX_PAGE_LIMIT = 100000
+BATCH_SIZE = 100
 BASE_URL = "https://pokeapi.co/api/v2/pokemon"
 
 
@@ -36,18 +37,24 @@ def update(configuration: dict, state: dict):
     log.warning("Example: QuickStart Examples - Large Data Set With Pagination")
 
     offset = 0
-    api_endpoint = BASE_URL + "?offset=" + str(offset) + "&limit=" + str(PAGE_LIMIT)
-    while True:
-        next_url, pokemons_df, next_offset = get_data(api_endpoint, offset)
-        for index, row in pokemons_df.iterrows():
-            op.upsert(table="pokemons", data={col: row[col] for col in pokemons_df.columns})
-        offset = next_offset
+    api_endpoint = BASE_URL + "?offset=" + str(offset) + "&limit=" + str(MAX_PAGE_LIMIT)
+    next_url, pokemons_df = get_data(api_endpoint, offset)
+    pokemon_batches = divide_into_batches(pokemons_df)
+    for batch in pokemon_batches:
+        for index, row in batch.iterrows():
+            op.upsert(table="pokemons_wo_pagination", data={col: row[col] for col in batch.columns})
+        offset = offset + len(batch)
         state["offset"] = offset
         op.checkpoint(state)
-        api_endpoint = next_url
-        if next_url is None:
-            break
 
+def divide_into_batches(pokemons):
+    """
+    Function to divide a large DataFrame into smaller batches and yield them for processing
+    Args:
+        pokemons: A pandas DataFrame containing the pokemons data to be divided into batches.
+    """
+    for index in range(0, len(pokemons), BATCH_SIZE):
+        yield pokemons.iloc[index : index + BATCH_SIZE]
 
 def get_data(url, offset):
     """
