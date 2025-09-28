@@ -76,7 +76,7 @@ def get_data(url, offset):
         pokemon_data = {"name": pokemons[i]["name"], "url": pokemons[i]["url"], "new_column": " "}
         pokemons_df = pd.concat([pokemons_df, pd.DataFrame([pokemon_data])], ignore_index=True)
 
-    return next_url, pokemons_df, offset + len(pokemons)
+    return next_url, pokemons_df
 
 
 # This creates the connector object that will use the update and schema functions defined in this connector.py file.
